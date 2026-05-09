@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CineVault — Personal Video Hub</title>
+<!-- Fonts loaded locally - no external requests -->
+<style>
+  :root {
+    --bg: #080b14;
+    --surface: #0e1424;
+    --card: #111827;
+    --card-hover: #161f33;
+    --border: #1e2d47;
+    --primary: #4f8ef7;
+    --primary-glow: rgba(79,142,247,0.15);
+    --accent: #f97316;
+    --accent-glow: rgba(249,115,22,0.15);
+    --danger: #ef4444;
+    --success: #10b981;
+    --text: #e8eaf2;
+    --muted: #5a6480;
+    --dim: #3a4460;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(79,142,247,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,142,247,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-mark {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--primary), #8b5cf6);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 24px rgba(79,142,247,0.3);
+  }
+  header h1 {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+  }
+  header h1 span { color: var(--primary); }
+  .header-stats {
+    margin-left: auto;
+    display: flex;
+    gap: 20px;
+  }
+  .stat {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .stat strong {
+    display: block;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    padding: 4px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.2s;
+    border: none;
+    background: transparent;
+  }
+  .tab.active {
+    background: var(--card);
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* ── Player ── */
+  .player-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: var(--surface);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .player-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px;
+    color: var(--dim);
+  }
+  .player-placeholder .icon { font-size: 48px; opacity: 0.4; }
+  .player-placeholder p { font-size: 14px; }
+  iframe, #mainVideo {
+    width: 100%; height: 100%; border: none;
+    display: none;
+  }
+  .now-playing-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(0deg, rgba(0,0,0,0.85), transparent);
+    padding: 20px 16px 14px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .now-playing-bar.visible { display: flex; }
+  .np-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.6; }
+  }
+  .resume-badge {
+    position: absolute;
+    top: 12px; right: 12px;
+    background: rgba(79,142,247,0.9);
+    backdrop-filter: blur(8px);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    display: none;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* ── Section panels ── */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Add form ── */
+  .add-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .add-card h3 {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .form-row { display: flex; gap: 10px; }
+  .form-group { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  label.field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+  input[type="text"],
+  input[type="url"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input[type="text"]:focus,
+  input[type="url"]:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+  }
+  .file-drop {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .file-drop:hover { border-color: var(--primary); background: var(--primary-glow); color: var(--text); }
+  .file-drop input { display: none; }
+  .divider {
+    display: flex; align-items: center; gap: 12px;
+    color: var(--dim); font-size: 12px; margin: 16px 0;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 11px 20px;
+    border: none; border-radius: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: #6fa0ff; box-shadow: 0 0 20px var(--primary-glow); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(239,68,68,0.3); padding: 7px 12px; font-size: 12px; }
+  .btn-danger:hover { background: rgba(239,68,68,0.1); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 7px 12px; font-size: 12px; }
+  .btn-ghost:hover { color: var(--text); border-color: var(--dim); }
+  .btn-download { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(249,115,22,0.25); padding: 7px 12px; font-size: 12px; }
+  .btn-download:hover { background: rgba(249,115,22,0.2); }
+
+  /* ── Video list ── */
+  .list-header {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .list-header h3 {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted);
+  }
+  .search-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    outline: none;
+    width: 180px;
+    transition: border-color 0.2s;
+  }
+  .search-bar:focus { border-color: var(--primary); }
+
+  .video-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .video-item:hover { background: var(--card-hover); border-color: var(--dim); transform: translateX(2px); }
+  .video-item.playing { border-color: var(--primary); background: var(--primary-glow); }
+
+  .thumb {
+    width: 54px; height: 36px;
+    border-radius: 8px;
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+  .video-meta { flex: 1; min-width: 0; }
+  .video-title {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .video-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .progress-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .progress-pill.has-progress { color: var(--primary); border-color: rgba(79,142,247,0.3); background: var(--primary-glow); }
+
+  .progress-bar-wrap {
+    width: 80px; height: 3px;
+    background: var(--surface);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 5px;
+    position: relative;
+  }
+  .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s; }
+
+  .item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* ── History panel ── */
+  .history-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .history-item .time-badge {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    flex-shrink: 0;
+    width: 90px;
+  }
+  .clear-btn {
+    background: transparent;
+    border: 1px solid rgba(239,68,68,0.3);
+    color: var(--danger);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .clear-btn:hover { background: rgba(239,68,68,0.1); }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--dim);
+  }
+  .empty .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+  .empty p { font-size: 14px; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    z-index: 999;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast .toast-icon { font-size: 16px; }
+
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); width: 50%; }
+    100% { transform: translateX(250%); width: 50%; }
+  }
+
+  @media (max-width: 600px) {
+    .form-row { flex-direction: column; }
+    .header-stats { display: none; }
+    .search-bar { width: 120px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-mark">🎬</div>
+    <div>
+      <h1>Cine<span>Vault</span></h1>
+    </div>
+    <div class="header-stats">
+      <div class="stat"><strong id="statVideos">0</strong>Videos</div>
+      <div class="stat"><strong id="statWatched">0</strong>Watched</div>
+    </div>
+  </header>
+
+  <!-- Player -->
+  <div class="player-wrap" id="playerWrap">
+    <div class="player-placeholder" id="placeholder">
+      <div class="icon">▶</div>
+      <p>Select a video from your library</p>
+    </div>
+    <video id="mainVideo" controls></video>
+    <iframe id="mainIframe" allowfullscreen allow="autoplay; fullscreen"></iframe>
+    <div id="embedBlocked" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:var(--surface)">
+      <div style="font-size:36px">🚫</div>
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:16px">Can't play inside the app</div>
+      <div style="font-size:13px;color:var(--muted);max-width:300px;line-height:1.6">This site blocks embedding. Tap below to open it in your browser.</div>
+      <a id="openExternalLink" href="#" target="_blank"
+         style="background:var(--primary);color:#fff;text-decoration:none;border-radius:10px;padding:12px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:14px">
+        🌐 Open in Browser
+      </a>
+    </div>
+    <div class="resume-badge" id="resumeBadge">⏩ Resuming from last position</div>
+    <div class="now-playing-bar" id="nowPlayingBar">
+      <div class="np-dot"></div>
+      <span id="nowPlayingTitle">—</span>
+    </div>
+  </div>
+
+  <!-- Audio Player Bar -->
+  <div id="audioBar" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="font-size:24px">🎵</div>
+      <div style="flex:1;min-width:0">
+        <div id="audioTitle" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Audio Track</div>
+      </div>
+      <button onclick="stopAudio()" style="background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px">✕</button>
+    </div>
+    <audio id="mainAudio" controls style="width:100%;height:40px;border-radius:8px;accent-color:var(--primary)"></audio>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="mainTabBar">
+    <button class="tab active" data-tab="library" onclick="switchTab('library')">📁 Library</button>
+    <button class="tab" data-tab="add" onclick="switchTab('add')">＋ Add</button>
+    <button class="tab" data-tab="photos" onclick="switchTab('photos')">🖼 Photos</button>
+    <button class="tab" data-tab="download" onclick="switchTab('download')">⬇ Download</button>
+    <button class="tab" data-tab="history" onclick="switchTab('history')">🕓 History</button>
+    <button class="tab" data-tab="cloud" onclick="switchTab('cloud')">☁️ Cloud</button>
+  </div>
+
+  <!-- Library Panel -->
+  <div class="panel active" id="panel-library">
+    <div class="list-header">
+      <h3>Your Library (<span id="libCount">0</span>)</h3>
+      <input class="search-bar" id="searchInput" placeholder="🔍 Search..." oninput="renderLibrary()">
+    </div>
+    <div id="videoList"></div>
+  </div>
+
+  <!-- Add Panel -->
+  <div class="panel" id="panel-add">
+
+    <!-- Sub-tabs -->
+    <div class="tabs" style="margin-bottom:16px">
+      <button class="tab active" id="addTabVideo" onclick="switchAddTab('video')">🎬 Add Video</button>
+      <button class="tab" id="addTabAudio" onclick="switchAddTab('audio')">🎵 Add Audio</button>
+    </div>
+
+    <!-- Video adder -->
+    <div id="addVideoSection">
+      <div class="add-card">
+        <h3>📂 Local Video File</h3>
+        <label class="file-drop" id="dropZoneVideo">
+          <div style="font-size:28px;margin-bottom:8px">🎬</div>
+          <div>Tap or drag & drop a video file</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--dim)">MP4 · MKV · MOV · AVI · WEBM</div>
+          <input type="file" id="localVideopicker" accept="video/*" onchange="addLocalFile(event,'video')">
+        </label>
+      </div>
+      <div class="add-card">
+        <h3>🌐 Video Link</h3>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="field-label">Title</label>
+          <input type="text" id="videoTitle" placeholder="Movie / Show Title">
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="field-label">URL</label>
+          <input type="url" id="videoUrl" placeholder="https://... (YouTube, .mp4, stream...)">
+        </div>
+        <button class="btn btn-primary" onclick="addWebItem('video')">＋ Add Video</button>
+      </div>
+    </div>
+
+    <!-- Audio adder -->
+    <div id="addAudioSection" style="display:none">
+      <div class="add-card">
+        <h3>📂 Local Audio File</h3>
+        <label class="file-drop" id="dropZoneAudio">
+          <div style="font-size:28px;margin-bottom:8px">🎵</div>
+          <div>Tap or drag & drop an audio file</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--dim)">MP3 · AAC · WAV · FLAC · OGG · M4A</div>
+          <input type="file" id="localAudioPicker" accept="audio/*" onchange="addLocalFile(event,'audio')">
+        </label>
+      </div>
+      <div class="add-card">
+        <h3>🌐 Audio Link</h3>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="field-label">Title</label>
+          <input type="text" id="audioTitle" placeholder="Song / Podcast Title">
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="field-label">URL</label>
+          <input type="url" id="audioUrl" placeholder="https://... (.mp3, SoundCloud...)">
+        </div>
+        <button class="btn btn-primary" onclick="addWebItem('audio')">＋ Add Audio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photos Panel -->
+  <div class="panel" id="panel-photos">
+
+    <!-- Add photo form -->
+    <div class="add-card">
+      <h3>🖼 Add Picture</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Add pictures by <strong style="color:var(--text)">image URL</strong>, <strong style="color:var(--text)">embed link</strong>, or upload from your device.
+      </p>
+
+      <!-- Sub-tabs -->
+      <div class="tabs" style="margin-bottom:14px">
+        <button class="tab active" id="picTabUrl" onclick="switchPicTab('url')">🔗 URL / Embed</button>
+        <button class="tab" id="picTabLocal" onclick="switchPicTab('local')">📂 Local File</button>
+      </div>
+
+      <!-- URL / Embed -->
+      <div id="picUrlSection">
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="field-label">Title / Caption</label>
+          <input type="text" id="picTitle" placeholder="My Photo">
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="field-label">Image URL or Embed URL</label>
+          <input type="url" id="picUrl" placeholder="https://example.com/photo.jpg" oninput="previewPicUrl()">
+        </div>
+        <!-- Live preview -->
+        <div id="picPreviewWrap" style="display:none;margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid var(--border);max-height:200px;background:var(--surface);display:flex;align-items:center;justify-content:center">
+          <img id="picPreviewImg" style="max-width:100%;max-height:200px;object-fit:contain;display:none">
+          <div id="picPreviewErr" style="font-size:13px;color:var(--muted);padding:20px;display:none">⚠️ Can't preview — will try to load when added</div>
+        </div>
+        <button class="btn btn-primary" onclick="addPicture('url')">＋ Add Picture</button>
+      </div>
+
+      <!-- Local file -->
+      <div id="picLocalSection" style="display:none">
+        <label class="file-drop" style="margin-bottom:12px">
+          <div style="font-size:28px;margin-bottom:8px">🖼</div>
+          <div>Tap or drag & drop an image</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--dim)">JPG · PNG · GIF · WEBP · SVG</div>
+          <input type="file" id="picFilePicker" accept="image/*" multiple onchange="addPicture('local', event)">
+        </label>
+      </div>
+    </div>
+
+    <!-- Gallery -->
+    <div class="list-header" style="margin-bottom:12px">
+      <h3>Gallery (<span id="picCount">0</span>)</h3>
+      <input class="search-bar" id="picSearch" placeholder="🔍 Search..." oninput="renderGallery()">
+    </div>
+    <div id="photoGallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px"></div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;flex-direction:column;align-items:center;justify-content:center" onclick="closeLightbox(event)">
+    <div style="position:absolute;top:16px;right:16px;display:flex;gap:8px;z-index:10000">
+      <button id="lbDownload" onclick="lbDownloadImg(event)" style="background:rgba(255,255,255,0.1);border:none;color:white;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600">⬇ Save</button>
+      <button id="lbCopyLink" onclick="lbCopyLink(event)" style="background:rgba(255,255,255,0.1);border:none;color:white;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600">🔗 Copy</button>
+      <button id="lbDelete" onclick="lbDelete(event)" style="background:rgba(239,68,68,0.3);border:none;color:white;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600">✕ Delete</button>
+      <button onclick="closeLightbox()" style="background:rgba(255,255,255,0.1);border:none;color:white;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">✕ Close</button>
+    </div>
+    <!-- Prev / Next -->
+    <button id="lbPrev" onclick="lbNav(-1,event)" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:white;font-size:28px;border-radius:50%;width:48px;height:48px;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+    <button id="lbNext" onclick="lbNav(1,event)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:white;font-size:28px;border-radius:50%;width:48px;height:48px;cursor:pointer;display:flex;align-items:center;justify-content:center">›</button>
+    <!-- Image -->
+    <img id="lbImg" style="max-width:calc(100vw - 100px);max-height:calc(100vh - 120px);object-fit:contain;border-radius:8px;user-select:none" draggable="false">
+    <!-- Caption -->
+    <div id="lbCaption" style="color:rgba(255,255,255,0.8);font-size:14px;margin-top:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600;text-align:center;max-width:80vw;padding:0 16px"></div>
+    <div id="lbCounter" style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:4px"></div>
+  </div>
+
+  <!-- Download Panel -->
+  <div class="panel" id="panel-download">
+
+    <!-- Mode picker — shown FIRST, prominent -->
+    <div class="add-card">
+      <h3 style="margin-bottom:12px">⬇ Downloader</h3>
+
+      <!-- Audio / Video toggle always visible -->
+      <label class="field-label" style="display:block;margin-bottom:8px">What do you want?</label>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button id="modeVideo" class="btn btn-primary" style="flex:1;justify-content:center;padding:13px" onclick="setMode('video')">🎬 Video</button>
+        <button id="modeAudio" class="btn btn-ghost"   style="flex:1;justify-content:center;padding:13px" onclick="setMode('audio')">🎵 Audio / MP3</button>
+      </div>
+
+      <label class="field-label" style="display:block;margin-bottom:8px">Paste URL</label>
+      <input type="url" id="smartUrl" placeholder="YouTube, TikTok, Instagram, SoundCloud, .mp4…"
+             style="width:100%;margin-bottom:10px" oninput="detectUrlType()">
+
+      <!-- Auto-detected type pill -->
+      <div id="detectedBanner" style="display:none;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary" style="flex:1;justify-content:center;padding:13px" onclick="smartDownload('cobalt')">
+          🚀 Cobalt
+        </button>
+        <button class="btn" style="flex:1;justify-content:center;padding:13px;background:#e8600a;color:#fff" onclick="smartDownload('savefrom')">
+          ⚡ SaveFrom
+        </button>
+        <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:13px" onclick="smartDownload('direct')">
+          ⬇ Direct
+        </button>
+      </div>
+    </div>
+
+    <!-- Result / cobalt card -->
+    <div id="dlResult" style="display:none"></div>
+
+    <!-- Direct fetch progress -->
+    <div class="add-card" id="dlProgressCard" style="display:none">
+      <h3 style="margin-bottom:12px">Download Progress</h3>
+      <div id="dlQueue"></div>
+    </div>
+
+    <!-- Downloader service info -->
+    <div class="add-card" style="border-color:rgba(79,142,247,0.15);background:rgba(79,142,247,0.03)">
+      <h3 style="color:var(--primary);margin-bottom:12px">📋 What works</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;margin-bottom:3px">✅ Downloads directly in-app</div>
+          <div style="color:var(--muted)">Direct <code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">.mp3 .mp4 .webm .wav</code> file links — full progress bar right here.</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;margin-bottom:3px">🚀 cobalt.tools</div>
+          <div style="color:var(--muted)">YouTube · Instagram · TikTok · Twitter/X · Reddit · SoundCloud · Vimeo · Pinterest · and more. Opens with your link pre-filled.</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;margin-bottom:3px">⚡ SaveFrom.net</div>
+          <div style="color:var(--muted)">Alternative downloader — good for YouTube, Facebook, Vimeo, Dailymotion. Opens with your link ready.</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;margin-bottom:3px;color:var(--danger)">❌ Not possible anywhere</div>
+          <div style="color:var(--muted)">Netflix · Disney+ · Spotify · Apple Music — DRM protected.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Panel -->
+  <div class="panel" id="panel-history">
+    <div class="list-header">
+      <h3>Watch History</h3>
+      <button class="clear-btn" onclick="clearHistory()">🗑 Clear All</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+  <!-- Cloud Panel -->
+  <div class="panel" id="panel-cloud">
+
+    <!-- Connection status bar -->
+    <div id="cloudStatusBar" style="display:none;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;display:flex;align-items:center;gap:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600"></div>
+
+    <!-- Backblaze B2 Settings -->
+    <div class="add-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <h3 style="margin:0">☁️ Backblaze B2 Storage</h3>
+        <span id="cloudBadge" style="font-size:10px;padding:2px 8px;border-radius:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600;background:rgba(94,234,212,0.1);color:#5eead4;border:1px solid rgba(94,234,212,0.2)">Not connected</span>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;margin-top:8px;line-height:1.6">
+        Enter your Backblaze B2 credentials below. They are stored <strong style="color:var(--text)">only on your device</strong> in localStorage — never sent anywhere except directly to Backblaze.
+      </p>
+
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="field-label">Key ID (applicationKeyId)</label>
+        <input type="text" id="b2KeyId" placeholder="e.g. b8ca83cc2745..." autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="field-label">Application Key</label>
+        <div style="position:relative">
+          <input type="password" id="b2AppKey" placeholder="Your application key" autocomplete="off" style="width:100%;padding-right:44px">
+          <button onclick="toggleKeyVis()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px" id="keyVisBtn">[Show]</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="field-label">Bucket Name</label>
+        <input type="text" id="b2BucketName" placeholder="e.g. cinevault123">
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="field-label">Endpoint</label>
+        <input type="text" id="b2Endpoint" placeholder="e.g. s3.us-east-005.backblazeb2.com">
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="field-label">Bucket Region (from endpoint, e.g. us-east-005)</label>
+        <input type="text" id="b2Region" placeholder="e.g. us-east-005">
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="saveB2Config()" style="flex:1;justify-content:center">💾 Save & Connect</button>
+        <button class="btn btn-ghost" onclick="testB2Connection()" style="flex:1;justify-content:center">🔌 Test Connection</button>
+        <button class="btn btn-danger" onclick="clearB2Config()" style="flex:1;justify-content:center">🗑 Clear</button>
+      </div>
+    </div>
+
+    <!-- Upload section -->
+    <div class="add-card" id="cloudUploadCard" style="display:none">
+      <h3 style="margin-bottom:12px">⬆️ Upload to Cloud</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Upload a video, audio, or image file to your Backblaze B2 bucket. After upload you get a permanent link you can add to your library.
+      </p>
+
+      <!-- Upload sub-tabs -->
+      <div class="tabs" style="margin-bottom:14px">
+        <button class="tab active" id="upTabVideo" onclick="switchUpTab('video')">🎬 Video</button>
+        <button class="tab" id="upTabAudio" onclick="switchUpTab('audio')">🎵 Audio</button>
+        <button class="tab" id="upTabPhoto" onclick="switchUpTab('photo')">🖼 Photo</button>
+      </div>
+
+      <div id="upVideoSection">
+        <label class="file-drop" style="margin-bottom:12px">
+          <div style="font-size:28px;margin-bottom:6px">🎬</div>
+          <div>Tap to select a video file</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--dim)">MP4 · MKV · MOV · WEBM</div>
+          <input type="file" accept="video/*" onchange="uploadToB2(event,'video')">
+        </label>
+      </div>
+      <div id="upAudioSection" style="display:none">
+        <label class="file-drop" style="margin-bottom:12px">
+          <div style="font-size:28px;margin-bottom:6px">🎵</div>
+          <div>Tap to select an audio file</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--dim)">MP3 · AAC · WAV · FLAC · OGG</div>
+          <input type="file" accept="audio/*" onchange="uploadToB2(event,'audio')">
+        </label>
+      </div>
+      <div id="upPhotoSection" style="display:none">
+        <label class="file-drop" style="margin-bottom:12px">
+          <div style="font-size:28px;margin-bottom:6px">🖼</div>
+          <div>Tap to select an image</div>
+          <div style="font-size:11px;margin-top:4px;color:var(--dim)">JPG · PNG · GIF · WEBP</div>
+          <input type="file" accept="image/*" onchange="uploadToB2(event,'photo')">
+        </label>
+      </div>
+
+      <!-- Upload progress -->
+      <div id="uploadProgressWrap" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px">
+          <span id="uploadFileName">Uploading...</span>
+          <span id="uploadPct">0%</span>
+        </div>
+        <div style="height:6px;background:var(--bg);border-radius:4px;overflow:hidden">
+          <div id="uploadBar" style="height:100%;background:var(--primary);border-radius:4px;width:0%;transition:width 0.3s"></div>
+        </div>
+        <div id="uploadStatus" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- Cloud library -->
+    <div class="add-card" id="cloudLibraryCard" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="margin:0">📦 Cloud Files (<span id="cloudFileCount">0</span>)</h3>
+        <button class="btn btn-ghost" style="padding:7px 12px;font-size:12px" onclick="loadCloudFiles()">🔄 Refresh</button>
+      </div>
+      <div id="cloudFileList"></div>
+    </div>
+
+    <!-- How to use info -->
+    <div class="add-card" style="border-color:rgba(79,142,247,0.15);background:rgba(79,142,247,0.03)">
+      <h3 style="color:var(--primary);margin-bottom:10px">ℹ️ How to set up Backblaze B2</h3>
+      <div style="font-size:13px;color:var(--muted);line-height:1.8">
+        <div>1. Go to <strong style="color:var(--text)">backblaze.com</strong> → sign up free</div>
+        <div>2. B2 Cloud Storage → Buckets → <strong style="color:var(--text)">Create Bucket</strong> (set to Private)</div>
+        <div>3. App Keys → <strong style="color:var(--text)">Add New Application Key</strong></div>
+        <div>4. Set access to Read & Write for your bucket</div>
+        <div>5. Copy the <strong style="color:var(--text)">keyID</strong> and <strong style="color:var(--text)">applicationKey</strong></div>
+        <div>6. Find your endpoint in Bucket Settings</div>
+        <div style="margin-top:10px;padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">
+          ⚠️ <strong style="color:var(--text)">Important:</strong> Your keys are stored only on this device. Never share them with anyone. Delete and recreate keys if compromised.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast"><span class="toast-icon" id="toastIcon">✓</span><span id="toastMsg"></span></div>
+
+<script>
+// ── Global error catcher ──
+window.onerror = function(msg, src, line, col, err) {
+  var div = document.getElementById('errorOverlay');
+  if (!div) {
+    div = document.createElement('div');
+    div.id = 'errorOverlay';
+    div.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#7f1d1d;color:white;padding:16px;font-size:12px;z-index:99999;font-family:monospace;max-height:250px;overflow:auto;border-top:3px solid #ef4444';
+    document.body.appendChild(div);
+  }
+  div.innerHTML += '<div style="margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:8px"><strong>Error:</strong> ' + msg + '<br><strong>Line:</strong> ' + line + ' <strong>Col:</strong> ' + col + '</div>';
+  return false;
+};
+
+// ── State ──
+var cvVideos   = JSON.parse(localStorage.getItem('cv_videos')  || '[]');
+var cvHistory  = JSON.parse(localStorage.getItem('cv_history') || '{}');
+var cvWatchLog = JSON.parse(localStorage.getItem('cv_watchlog')|| '[]');
+var cvPhotos   = JSON.parse(localStorage.getItem('cv_photos')  || '[]');
+var cvB2Config = JSON.parse(localStorage.getItem('cv_b2config')|| 'null');
+var currentTitle = null;
+var lbIndex = 0;
+var currentMode = 'video';
+var dlJobs = [];
+var b2AuthToken = null;
+var b2ApiUrl = null;
+var b2DownloadUrl = null;
+var _cloudInitDone = false;
+
+// ── Save helpers ──
+function saveVideos()  { localStorage.setItem('cv_videos',  JSON.stringify(cvVideos));  }
+function savePhotos()  { localStorage.setItem('cv_photos',  JSON.stringify(cvPhotos));  }
+function saveHistory() { localStorage.setItem('cv_history', JSON.stringify(cvHistory)); }
+
+// ── Tab switching ──
+function switchTab(name) {
+  var panels = document.querySelectorAll('.panel');
+  for (var i = 0; i < panels.length; i++) panels[i].classList.remove('active');
+  var panel = document.getElementById('panel-' + name);
+  if (panel) panel.classList.add('active');
+  var bar = document.getElementById('mainTabBar');
+  if (bar) {
+    var tabs = bar.querySelectorAll('.tab');
+    for (var j = 0; j < tabs.length; j++) {
+      tabs[j].classList.toggle('active', tabs[j].getAttribute('data-tab') === name);
+    }
+  }
+  if (name === 'history') renderHistory();
+  if (name === 'library') renderLibrary();
+  if (name === 'photos')  renderGallery();
+  if (name === 'cloud')   initCloudTab();
+}
+
+// ── Render library ──
+function renderLibrary() {
+  var searchEl = document.getElementById('searchInput');
+  var query = searchEl ? searchEl.value.toLowerCase() : '';
+  var filtered = [];
+  for (var i = 0; i < cvVideos.length; i++) {
+    if (cvVideos[i].title.toLowerCase().indexOf(query) !== -1) filtered.push(cvVideos[i]);
+  }
+  var list = document.getElementById('videoList');
+  var libCount = document.getElementById('libCount');
+  var statVideos = document.getElementById('statVideos');
+  var statWatched = document.getElementById('statWatched');
+  if (libCount) libCount.textContent = filtered.length;
+  if (statVideos) statVideos.textContent = cvVideos.length;
+  var watchedCount = 0;
+  for (var k in cvHistory) { if (cvHistory[k] > 0) watchedCount++; }
+  if (statWatched) statWatched.textContent = watchedCount;
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">[Video]</div><p>' + (query ? 'No results found.' : 'Your library is empty. Add some videos!') + '</p></div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < filtered.length; i++) {
+    var v = filtered[i];
+    var realIdx = cvVideos.indexOf(v);
+    var saved = cvHistory[v.title] || 0;
+    var dur = v.duration || 0;
+    var pct = dur > 0 ? Math.min(100, (saved / dur) * 100) : 0;
+    var timeStr = saved > 0 ? (Math.floor(saved/60) + 'm ' + Math.floor(saved%60) + 's') : 'Not started';
+    var isPlaying = currentTitle === v.title;
+    var isAudioLink = v.type === 'web' && /\.(mp3|ogg|wav|flac|aac|m4a|opus|weba)(\?.*)?$/i.test(v.url);
+    var isLocalAudio = v.type === 'local' && v.mediaKind === 'audio';
+    var emoji = v.type === 'local' ? (isLocalAudio ? '[Audio]' : '[Film]') : (isAudioLink ? '[Audio]' : '[Web]');
+    var typeLabel = v.type === 'local' ? (isLocalAudio ? 'Local Audio' : 'Local') : (isAudioLink ? 'Audio' : 'Stream');
+    var dlBtn = '<button class="btn btn-download" onclick="downloadVideo(' + realIdx + ', event)" title="Download">Download</button>';
+    var shareBtn = v.type === 'local'
+      ? '<button class="btn btn-ghost" onclick="shareLocalFile(' + realIdx + ', event)" title="Share">[Share]</button>'
+      : '<button class="btn btn-ghost" onclick="copyLink(' + realIdx + ', event)" title="Copy link">[Link]</button>';
+    var progressBar = dur > 0 ? '<div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div>' : '';
+    html += '<div class="video-item ' + (isPlaying ? 'playing' : '') + '" onclick="playVideo(' + realIdx + ')">'
+      + '<div class="thumb">' + emoji + '</div>'
+      + '<div class="video-meta">'
+        + '<div class="video-title">' + v.title + '</div>'
+        + '<div class="video-sub">'
+          + '<span class="progress-pill ' + (saved > 0 ? 'has-progress' : '') + '">' + timeStr + '</span>'
+          + '<span style="color:var(--dim)">' + typeLabel + '</span>'
+        + '</div>'
+        + progressBar
+      + '</div>'
+      + '<div class="item-actions" onclick="event.stopPropagation()">'
+        + shareBtn + dlBtn
+        + '<button class="btn btn-danger" onclick="removeVideo(' + realIdx + ')">✕</button>'
+      + '</div>'
+    + '</div>';
+  }
+  list.innerHTML = html;
+}
+
+// ── Add sub-tabs ──
+function switchAddTab(tab) {
+  var tv = document.getElementById('addTabVideo');
+  var ta = document.getElementById('addTabAudio');
+  var sv = document.getElementById('addVideoSection');
+  var sa = document.getElementById('addAudioSection');
+  if (tv) tv.classList.toggle('active', tab === 'video');
+  if (ta) ta.classList.toggle('active', tab === 'audio');
+  if (sv) sv.style.display = tab === 'video' ? 'block' : 'none';
+  if (sa) sa.style.display = tab === 'audio' ? 'block' : 'none';
+}
+
+// ── Add local file ──
+function addLocalFile(event, kind) {
+  var file = event.target.files[0];
+  if (!file) return;
+  for (var i = 0; i < cvVideos.length; i++) {
+    if (cvVideos[i].title === file.name) { toast('!', 'Already in library'); return; }
+  }
+  var url = URL.createObjectURL(file);
+  var isAudio = kind === 'audio' || file.type.indexOf('audio/') === 0;
+  var entry = { title: file.name, url: url, type: 'local', mediaKind: isAudio ? 'audio' : 'video', added: Date.now() };
+  cvVideos.push(entry);
+  if (!window._localFiles) window._localFiles = {};
+  window._localFiles[file.name] = file;
+  saveVideos();
+  switchTab('library');
+  toast(isAudio ? '[Audio]' : 'OK', 'Added: ' + file.name);
+}
+
+function addLocalVideo(event) { addLocalFile(event, 'video'); }
+
+// ── Add web item ──
+function addWebItem(kind) {
+  var titleEl = document.getElementById(kind + 'Title');
+  var urlEl   = document.getElementById(kind + 'Url');
+  var title   = titleEl ? titleEl.value.trim() : '';
+  var url     = urlEl   ? urlEl.value.trim()   : '';
+  if (!title || !url) { toast('!', 'Fill in both fields'); return; }
+  for (var i = 0; i < cvVideos.length; i++) {
+    if (cvVideos[i].title === title) { toast('!', 'Title already exists'); return; }
+  }
+  cvVideos.push({ title: title, url: url, type: 'web', mediaKind: kind, added: Date.now() });
+  saveVideos();
+  titleEl.value = ''; urlEl.value = '';
+  switchTab('library');
+  toast(kind === 'audio' ? '[Audio]' : 'OK', 'Added: ' + title);
+}
+function addWebVideo() { addWebItem('video'); }
+
+// ── Remove video ──
+function removeVideo(i) {
+  var title = cvVideos[i].title;
+  cvVideos.splice(i, 1);
+  if (currentTitle === title) {
+    var mv = document.getElementById('mainVideo');
+    var mi = document.getElementById('mainIframe');
+    var ph = document.getElementById('placeholder');
+    var nb = document.getElementById('nowPlayingBar');
+    if (mv) { mv.src = ''; mv.style.display = 'none'; }
+    if (mi) { mi.src = ''; mi.style.display = 'none'; }
+    if (ph) ph.style.display = 'flex';
+    if (nb) nb.classList.remove('visible');
+    currentTitle = null;
+  }
+  saveVideos();
+  toast('Deleted', 'Removed: ' + title);
+}
+
+// ── Copy link ──
+function copyLink(i, e) {
+  e.stopPropagation();
+  var url = cvVideos[i].url;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function(){ toast('[Link]', 'Link copied!'); }, function(){ fallbackCopy(url); });
+  } else { fallbackCopy(url); }
+}
+function fallbackCopy(text) {
+  var inp = document.createElement('input');
+  inp.value = text;
+  document.body.appendChild(inp);
+  inp.select();
+  try { document.execCommand('copy'); toast('[Link]', 'Link copied!'); } catch(e) { toast('!', 'Copy failed'); }
+  document.body.removeChild(inp);
+}
+
+// ── Share local file ──
+function shareLocalFile(i, e) {
+  e.stopPropagation();
+  var v = cvVideos[i];
+  var file = window._localFiles && window._localFiles[v.title];
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: v.title }).then(function(){
+      toast('[Share]', 'Share dialog opened');
+    }).catch(function(err){
+      if (err.name !== 'AbortError') toast('!', 'Share failed');
+    });
+  } else if (navigator.share) {
+    navigator.share({ title: v.title, text: 'Check out: ' + v.title }).catch(function(){});
+  } else {
+    toast('!', 'Sharing not supported on this browser');
+  }
+}
+
+// ── Download video ──
+function downloadVideo(i, e) {
+  e.stopPropagation();
+  var v = cvVideos[i];
+  if (v.type === 'local') {
+    var a = document.createElement('a');
+    a.href = v.url; a.download = v.title; a.click();
+    toast('Download', 'Downloading: ' + v.title);
+    return;
+  }
+  switchTab('download');
+  var su = document.getElementById('smartUrl');
+  if (su) su.value = v.url;
+  toast('Go', 'URL loaded — tap a download button');
+}
+
+// ── URL type detection ──
+var COBALT_SITES    = ['youtube.com','youtu.be','music.youtube.com','instagram.com','tiktok.com','twitter.com','x.com','reddit.com','pinterest.com','tumblr.com','bilibili.com','dailymotion.com','twitch.tv','vimeo.com','snapchat.com','facebook.com','fb.watch'];
+var SOUNDCLOUD_HOSTS= ['soundcloud.com','snd.sc'];
+var EMBEDDABLE      = ['youtube.com','youtu.be','vimeo.com','dailymotion.com','twitch.tv','rumble.com'];
+var BLOCKS_EMBED    = ['instagram.com','tiktok.com','twitter.com','x.com','facebook.com','fb.watch','reddit.com','soundcloud.com','music.youtube.com','bilibili.com','pinterest.com','snapchat.com','netflix.com','spotify.com'];
+var DIRECT_VIDEO_EXT= /\.(mp4|webm|mov|mkv|avi|ogv|m4v|flv|3gp)(\?.*)?$/i;
+var DIRECT_AUDIO_EXT= /\.(mp3|ogg|wav|flac|aac|m4a|opus|weba)(\?.*)?$/i;
+
+function hostOf(url) { try { return new URL(url).hostname.replace('www.',''); } catch(e) { return ''; } }
+function arrIncludes(arr, val) { for(var i=0;i<arr.length;i++){if(val.indexOf(arr[i])!==-1)return true;} return false; }
+
+function getUrlType(url) {
+  if (!url) return 'empty';
+  if (DIRECT_VIDEO_EXT.test(url)) return 'direct-video';
+  if (DIRECT_AUDIO_EXT.test(url)) return 'direct-audio';
+  var host = hostOf(url);
+  if (arrIncludes(SOUNDCLOUD_HOSTS, host)) return 'soundcloud';
+  if (arrIncludes(COBALT_SITES, host))     return 'cobalt';
+  return 'unknown';
+}
+
+function getLinkMediaType(url) {
+  if (!url) return 'unknown';
+  if (DIRECT_VIDEO_EXT.test(url)) return 'direct-video';
+  if (DIRECT_AUDIO_EXT.test(url)) return 'direct-audio';
+  var host = hostOf(url);
+  if (arrIncludes(BLOCKS_EMBED, host))  return 'blocked';
+  if (arrIncludes(EMBEDDABLE, host))    return 'embed';
+  return 'try-embed';
+}
+
+// ── Play video ──
+function playVideo(i) {
+  var v = cvVideos[i];
+  currentTitle = v.title;
+  var placeholder = document.getElementById('placeholder');
+  var videoEl     = document.getElementById('mainVideo');
+  var audioEl     = document.getElementById('mainAudio');
+  var audioBar    = document.getElementById('audioBar');
+  var iframeEl    = document.getElementById('mainIframe');
+  var blockedEl   = document.getElementById('embedBlocked');
+  var bar         = document.getElementById('nowPlayingBar');
+  var badge       = document.getElementById('resumeBadge');
+  var playerWrap  = document.getElementById('playerWrap');
+
+  if (videoEl)   { videoEl.style.display = 'none'; videoEl.src = ''; }
+  if (iframeEl)  { iframeEl.style.display = 'none'; iframeEl.src = ''; }
+  if (blockedEl) blockedEl.style.display = 'none';
+  if (audioBar)  { audioBar.style.display = 'none'; if (audioEl) { audioEl.src = ''; } }
+  if (placeholder) placeholder.style.display = 'none';
+  if (playerWrap)  playerWrap.style.display = 'block';
+
+  var mediaType = v.type === 'local'
+    ? (v.mediaKind === 'audio' ? 'direct-audio' : 'direct-video')
+    : getLinkMediaType(v.url);
+
+  if (mediaType === 'direct-audio') {
+    if (playerWrap) playerWrap.style.display = 'none';
+    if (audioBar) audioBar.style.display = 'block';
+    var audioTitleEl = document.getElementById('audioTitle');
+    if (audioTitleEl) audioTitleEl.textContent = v.title;
+    if (audioEl) { audioEl.src = v.url; audioEl.play().catch(function(){}); }
+    if (bar) bar.classList.add('visible');
+    var npTitle = document.getElementById('nowPlayingTitle');
+    if (npTitle) npTitle.textContent = '[Audio] ' + v.title;
+    if (audioBar) audioBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    logWatch(v.title);
+    renderLibrary();
+    return;
+  }
+
+  if (mediaType === 'direct-video' || v.type === 'local') {
+    if (videoEl) {
+      videoEl.style.display = 'block';
+      videoEl.src = v.url;
+      videoEl.onloadedmetadata = function() {
+        var saved = cvHistory[v.title] || 0;
+        cvVideos[i].duration = videoEl.duration;
+        saveVideos();
+        if (saved > 2) {
+          videoEl.currentTime = saved;
+          if (badge) { badge.style.display = 'block'; setTimeout(function(){ badge.style.display='none'; }, 3000); }
+        }
+      };
+      videoEl.ontimeupdate = function() {
+        cvHistory[v.title] = videoEl.currentTime;
+        localStorage.setItem('cv_history', JSON.stringify(cvHistory));
+      };
+      videoEl.onerror = function() { videoEl.style.display='none'; showBlocked(v.url); };
+      videoEl.play().catch(function(){});
+    }
+  } else if (mediaType === 'embed' || mediaType === 'try-embed') {
+    var embedUrl = v.url;
+    var host = hostOf(v.url);
+    if (host.indexOf('youtube') !== -1 || host.indexOf('youtu.be') !== -1) {
+      embedUrl = getYouTubeEmbedUrl(v.url) || v.url;
+    } else if (host.indexOf('vimeo') !== -1) {
+      embedUrl = getVimeoEmbedUrl(v.url) || v.url;
+    }
+    if (iframeEl) { iframeEl.style.display = 'block'; iframeEl.src = embedUrl; }
+  } else {
+    showBlocked(v.url);
+    return;
+  }
+
+  if (bar) bar.classList.add('visible');
+  var npTitle = document.getElementById('nowPlayingTitle');
+  if (npTitle) npTitle.textContent = v.title;
+  logWatch(v.title);
+  if (playerWrap) playerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  renderLibrary();
+}
+
+function showBlocked(url) {
+  var pw = document.getElementById('playerWrap');
+  var be = document.getElementById('embedBlocked');
+  var ol = document.getElementById('openExternalLink');
+  var nb = document.getElementById('nowPlayingBar');
+  if (pw) pw.style.display = 'block';
+  if (be) be.style.display = 'flex';
+  if (ol) ol.href = url;
+  if (nb) nb.classList.add('visible');
+}
+
+function stopAudio() {
+  var audioEl = document.getElementById('mainAudio');
+  var audioBar= document.getElementById('audioBar');
+  var nb      = document.getElementById('nowPlayingBar');
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; }
+  if (audioBar) audioBar.style.display = 'none';
+  if (nb) nb.classList.remove('visible');
+  currentTitle = null;
+  renderLibrary();
+}
+
+function getYouTubeEmbedUrl(url) {
+  try {
+    var u = new URL(url);
+    var id = u.searchParams.get('v');
+    if (!id && u.hostname.indexOf('youtu.be') !== -1) id = u.pathname.slice(1);
+    if (!id) return null;
+    return 'https://www.youtube.com/embed/' + id + '?autoplay=1';
+  } catch(e) { return null; }
+}
+
+function getVimeoEmbedUrl(url) {
+  try {
+    var match = url.match(/vimeo\.com\/(\d+)/);
+    return match ? 'https://player.vimeo.com/video/' + match[1] + '?autoplay=1' : null;
+  } catch(e) { return null; }
+}
+
+// ── Watch log ──
+function logWatch(title) {
+  var now = new Date().toISOString();
+  var newLog = [];
+  for (var i = 0; i < cvWatchLog.length; i++) {
+    if (cvWatchLog[i].title !== title) newLog.push(cvWatchLog[i]);
+  }
+  newLog.unshift({ title: title, at: now });
+  if (newLog.length > 50) newLog.pop();
+  cvWatchLog = newLog;
+  localStorage.setItem('cv_watchlog', JSON.stringify(cvWatchLog));
+}
+
+// ── Render history ──
+function renderHistory() {
+  var list = document.getElementById('historyList');
+  if (!cvWatchLog.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">[History]</div><p>No watch history yet.</p></div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < cvWatchLog.length; i++) {
+    var e = cvWatchLog[i];
+    var d = new Date(e.at);
+    var dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    var timeStr = d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    var saved = cvHistory[e.title] || 0;
+    var prog = saved > 0 ? 'Stopped at ' + Math.floor(saved/60) + 'm ' + Math.floor(saved%60) + 's' : 'Started';
+    html += '<div class="history-item">'
+      + '<div class="thumb">[Film]</div>'
+      + '<div class="video-meta">'
+        + '<div class="video-title">' + e.title + '</div>'
+        + '<div class="video-sub"><span class="progress-pill ' + (saved>0?'has-progress':'') + '">' + prog + '</span></div>'
+      + '</div>'
+      + '<div class="time-badge">' + dateStr + '<br>' + timeStr + '</div>'
+    + '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function clearHistory() {
+  cvWatchLog = []; cvHistory = {};
+  localStorage.removeItem('cv_watchlog');
+  localStorage.removeItem('cv_history');
+  toast('Deleted', 'History cleared');
+  renderHistory(); renderLibrary();
+}
+
+// ── Save videos ──
+function saveVideos() {
+  localStorage.setItem('cv_videos', JSON.stringify(cvVideos));
+  renderLibrary();
+}
+
+// ── Toast ──
+function toast(icon, msg) {
+  var el = document.getElementById('toast');
+  var ic = document.getElementById('toastIcon');
+  var ms = document.getElementById('toastMsg');
+  if (ic) ic.textContent = icon;
+  if (ms) ms.textContent = msg;
+  if (el) {
+    el.classList.add('show');
+    setTimeout(function(){ el.classList.remove('show'); }, 2800);
+  }
+}
+
+// ── Drag & drop ──
+document.addEventListener('DOMContentLoaded', function() {
+  document.body.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.body.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var files = e.dataTransfer.files;
+    var photosActive = document.getElementById('panel-photos') && document.getElementById('panel-photos').classList.contains('active');
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i];
+      if (photosActive && file.type.indexOf('image/') === 0) {
+        (function(f){
+          var reader = new FileReader();
+          reader.onload = function(ev) {
+            cvPhotos.push({ id: Date.now() + Math.random(), title: f.name, url: ev.target.result, type: 'local', added: Date.now() });
+            savePhotos();
+            renderGallery();
+          };
+          reader.readAsDataURL(f);
+        })(file);
+      } else if (file.type.indexOf('video/') === 0 || file.type.indexOf('audio/') === 0) {
+        var kind = file.type.indexOf('audio/') === 0 ? 'audio' : 'video';
+        addLocalFile({ target: { files: [file] } }, kind);
+      }
+    }
+    if (files.length) toast('[File]', 'File(s) added!');
+  });
+});
+
+// ── Downloader ──
+function setMode(mode) {
+  currentMode = mode;
+  var mv = document.getElementById('modeVideo');
+  var ma = document.getElementById('modeAudio');
+  if (mv) { mv.className = 'btn ' + (mode==='video'?'btn-primary':'btn-ghost'); mv.style.cssText='flex:1;justify-content:center;padding:13px'; }
+  if (ma) { ma.className = 'btn ' + (mode==='audio'?'btn-primary':'btn-ghost'); ma.style.cssText='flex:1;justify-content:center;padding:13px'; }
+  detectUrlType();
+}
+
+function detectUrlType() {
+  var urlEl = document.getElementById('smartUrl');
+  var banner = document.getElementById('detectedBanner');
+  if (!urlEl || !banner) return;
+  var url = urlEl.value.trim();
+  var type = getUrlType(url);
+  if (!url) { banner.style.display='none'; return; }
+  var isAudio = currentMode === 'audio';
+  var bg='rgba(249,115,22,0.08)', border='rgba(249,115,22,0.3)', icon='', text='';
+  if (type==='soundcloud')    { icon='[Audio]'; text=isAudio?' SoundCloud — will open cobalt.tools for audio download.':' SoundCloud — switch to Audio mode.'; }
+  else if (type==='cobalt')   { icon=isAudio?'[Audio]':''; text='Will open <strong>cobalt.tools</strong> with your link. '+(isAudio?'Select [Audio] Audio there.':'Tap Download there.'); }
+  else if (type==='direct-audio') { bg='rgba(16,185,129,0.08)'; border='rgba(16,185,129,0.3)'; icon='[Audio]'; text='OK Direct audio — downloads right here.'; }
+  else if (type==='direct-video') { bg='rgba(16,185,129,0.08)'; border='rgba(16,185,129,0.3)'; icon='[Video]'; text='OK Direct video — downloads right here.'; }
+  else { icon='[Link]'; text='Unknown link — will try cobalt.tools.'; }
+  banner.style.cssText='display:block;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.6;background:'+bg+';border:1px solid '+border+';color:var(--text)';
+  banner.innerHTML = icon + ' ' + text;
+}
+
+function smartDownload(service) {
+  var urlEl = document.getElementById('smartUrl');
+  if (!urlEl) return;
+  var url = urlEl.value.trim();
+  if (!url) { toast('!', 'Paste a URL first'); return; }
+  var type = getUrlType(url);
+  var isAudio = currentMode === 'audio';
+  if (service === 'savefrom') { openInSaveFrom(url); return; }
+  if (service === 'direct' || (service !== 'cobalt' && (type==='direct-audio'||type==='direct-video'))) {
+    startDirectDownload(url); return;
+  }
+  openInCobalt(url, isAudio);
+}
+
+function openInCobalt(url, isAudio) {
+  var cobaltUrl = 'https://cobalt.tools/#' + encodeURIComponent(url);
+  var resultEl = document.getElementById('dlResult');
+  if (!resultEl) return;
+  resultEl.style.display = 'block';
+  var modeLabel = isAudio ? 'MP3 / Audio' : 'Video';
+  var modeNote  = isAudio ? '<div style="font-size:11px;color:var(--dim);text-align:center;margin-bottom:10px"> Tap the [Audio] Audio toggle on cobalt.tools first</div>' : '';
+  resultEl.innerHTML = '<div class="add-card" style="border-color:rgba(249,115,22,0.3);background:rgba(249,115,22,0.06)">'
+    + '<div style="font-size:22px;margin-bottom:8px">Go</div>'
+    + '<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:15px;margin-bottom:6px">Open in cobalt.tools — ' + modeLabel + '</div>'
+    + '<div style="font-size:13px;color:var(--muted);margin-bottom:12px">' + (isAudio?'Select Audio mode on cobalt.tools then tap Download.':'Tap Download on cobalt.tools.') + '</div>'
+    + '<a href="' + cobaltUrl + '" target="_blank" style="display:block;background:var(--accent);color:#fff;text-decoration:none;border-radius:10px;padding:14px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:15px;margin-bottom:8px">Go Open cobalt.tools</a>'
+    + modeNote
+    + '<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('dlResult').style.display='none'">✕ Dismiss</button>'
+  + '</div>';
+  toast('Go', 'cobalt.tools ready');
+}
+
+function openInSaveFrom(url) {
+  var sfUrl = 'https://en1.savefrom.net/17Bb/#url=' + encodeURIComponent(url);
+  var resultEl = document.getElementById('dlResult');
+  if (!resultEl) return;
+  resultEl.style.display = 'block';
+  resultEl.innerHTML = '<div class="add-card" style="border-color:rgba(233,96,10,0.3);background:rgba(233,96,10,0.06)">'
+    + '<div style="font-size:22px;margin-bottom:8px">Fast</div>'
+    + '<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:15px;margin-bottom:6px">Open in SaveFrom.net</div>'
+    + '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Works great for YouTube, Facebook, Vimeo. Your link is pre-filled.</div>'
+    + '<a href="' + sfUrl + '" target="_blank" style="display:block;background:#e8600a;color:#fff;text-decoration:none;border-radius:10px;padding:14px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:15px;margin-bottom:8px">Fast Open SaveFrom.net</a>'
+    + '<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById('dlResult').style.display='none'">✕ Dismiss</button>'
+  + '</div>';
+  toast('Fast', 'SaveFrom ready');
+}
+
+function startDirectDownload(url) {
+  var name;
+  try { name = decodeURIComponent(new URL(url).pathname.split('/').pop()) || 'download'; } catch(e) { name = 'download'; }
+  if (!name || name.indexOf('.') === -1) name += '.mp4';
+  var jobId = Date.now();
+  dlJobs.unshift({ id: jobId, name: name, url: url, status: 'fetching', progress: 0 });
+  renderDlQueue();
+  var card = document.getElementById('dlProgressCard');
+  if (card) card.style.display = 'block';
+  fetchDownload(url, name, jobId);
+}
+
+function startUrlDownload() {
+  var urlEl  = document.getElementById('dlUrl');
+  var nameEl = document.getElementById('dlName');
+  var url    = urlEl  ? urlEl.value.trim()  : '';
+  var name   = nameEl ? nameEl.value.trim() : '';
+  if (!url) { toast('!', 'Enter a video URL'); return; }
+  if (!name) { try { name = decodeURIComponent(new URL(url).pathname.split('/').pop()) || 'video.mp4'; } catch(e) { name='video.mp4'; } }
+  if (name.indexOf('.') === -1) name += '.mp4';
+  if (urlEl)  urlEl.value  = '';
+  if (nameEl) nameEl.value = '';
+  var jobId = Date.now();
+  dlJobs.unshift({ id: jobId, name: name, url: url, status: 'fetching', progress: 0 });
+  renderDlQueue();
+  var card = document.getElementById('dlProgressCard');
+  if (card) card.style.display = 'block';
+  fetchDownload(url, name, jobId);
+}
+
+function fetchDownload(url, name, jobId) {
+  fetch(url).then(function(resp) {
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var contentType = resp.headers.get('content-type') || '';
+    if (contentType.indexOf('text/html') !== -1) throw new Error('URL returned a webpage, not a file');
+    var total = parseInt(resp.headers.get('content-length') || '0');
+    var reader = resp.body.getReader();
+    var chunks = []; var loaded = 0;
+    function read() {
+      return reader.read().then(function(result) {
+        if (result.done) {
+          var blob = new Blob(chunks);
+          var blobUrl = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = blobUrl; a.download = name; a.click();
+          setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 10000);
+          updateJob(jobId, 'done', 100, loaded, total);
+          toast('OK', 'Downloaded: ' + name);
+          return;
+        }
+        chunks.push(result.value); loaded += result.value.length;
+        var pct = total > 0 ? Math.round((loaded/total)*100) : -1;
+        updateJob(jobId, 'fetching', pct, loaded, total);
+        return read();
+      });
+    }
+    return read();
+  }).catch(function(err) {
+    updateJob(jobId, 'error', 0, 0, 0, err.message);
+    toast('Error', 'Failed: ' + err.message.slice(0,40));
+  });
+}
+
+function updateJob(id, status, progress, loaded, total, error) {
+  for (var i=0;i<dlJobs.length;i++) {
+    if (dlJobs[i].id === id) {
+      dlJobs[i].status=status; dlJobs[i].progress=progress;
+      dlJobs[i].loaded=loaded; dlJobs[i].total=total;
+      dlJobs[i].error=error; break;
+    }
+  }
+  renderDlQueue();
+}
+
+function renderDlQueue() {
+  var el = document.getElementById('dlQueue');
+  if (!el || !dlJobs.length) return;
+  var html = '';
+  for (var i=0;i<dlJobs.length;i++) {
+    var j = dlJobs[i];
+    var pctLabel  = j.progress >= 0 ? j.progress+'%' : 'Downloading…';
+    var sizeLabel = j.loaded > 0 ? (j.loaded/1024/1024).toFixed(1)+' MB'+(j.total>0?' / '+(j.total/1024/1024).toFixed(1)+' MB':'') : '';
+    var statusHtml = '';
+    if (j.status==='fetching') statusHtml = '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px"><span>'+pctLabel+'</span><span>'+sizeLabel+'</span></div><div class="progress-bar-wrap" style="width:100%;height:5px"><div class="progress-bar-fill" style="width:'+(j.progress>=0?j.progress:40)+'%"></div></div>';
+    else if (j.status==='done') statusHtml = '<span style="color:var(--success);font-size:12px">OK Saved ('+((j.loaded||0)/1024/1024).toFixed(1)+' MB)</span>';
+    else statusHtml = '<span style="color:var(--danger);font-size:12px">Error '+(j.error||'Failed')+'</span>';
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px"><div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;font-weight:600;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+j.name+'</div>'+statusHtml+'</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ── Photos ──
+function switchPicTab(tab) {
+  var tU=document.getElementById('picTabUrl'); var tL=document.getElementById('picTabLocal');
+  var sU=document.getElementById('picUrlSection'); var sL=document.getElementById('picLocalSection');
+  if(tU) tU.classList.toggle('active', tab==='url');
+  if(tL) tL.classList.toggle('active', tab==='local');
+  if(sU) sU.style.display = tab==='url'   ? 'block':'none';
+  if(sL) sL.style.display = tab==='local' ? 'block':'none';
+}
+
+function previewPicUrl() {
+  var urlEl=document.getElementById('picUrl'); var wrap=document.getElementById('picPreviewWrap');
+  var img=document.getElementById('picPreviewImg'); var err=document.getElementById('picPreviewErr');
+  if (!urlEl||!wrap) return;
+  var url=urlEl.value.trim();
+  if (!url) { wrap.style.display='none'; return; }
+  wrap.style.display='flex'; if(img)img.style.display='none'; if(err)err.style.display='none';
+  if (img) { img.onload=function(){img.style.display='block';if(err)err.style.display='none';}; img.onerror=function(){img.style.display='none';if(err)err.style.display='block';}; img.src=url; }
+}
+
+function addPicture(mode, event) {
+  if (mode==='url') {
+    var titleEl=document.getElementById('picTitle'); var urlEl=document.getElementById('picUrl');
+    var title=titleEl?titleEl.value.trim():'Untitled'; var url=urlEl?urlEl.value.trim():'';
+    if (!url) { toast('!','Enter an image URL'); return; }
+    cvPhotos.push({ id: Date.now(), title: title||'Untitled', url: url, type:'url', added:Date.now() });
+    savePhotos(); if(titleEl)titleEl.value=''; if(urlEl)urlEl.value='';
+    var pw=document.getElementById('picPreviewWrap'); if(pw)pw.style.display='none';
+    renderGallery(); toast('[Photo]','Added: '+(title||'Photo'));
+  } else {
+    var files = event.target.files;
+    for (var i=0;i<files.length;i++) {
+      (function(file){
+        var reader=new FileReader();
+        reader.onload=function(e){ cvPhotos.push({id:Date.now()+Math.random(),title:file.name,url:e.target.result,type:'local',added:Date.now()}); savePhotos(); renderGallery(); };
+        reader.readAsDataURL(file);
+      })(files[i]);
+    }
+    event.target.value=''; toast('[Photo]','Adding photos...');
+  }
+}
+
+function renderGallery() {
+  var picSearchEl=document.getElementById('picSearch');
+  var query = picSearchEl ? picSearchEl.value.toLowerCase() : '';
+  var filtered=[];
+  for(var i=0;i<cvPhotos.length;i++){if(cvPhotos[i].title.toLowerCase().indexOf(query)!==-1)filtered.push(cvPhotos[i]);}
+  var grid=document.getElementById('photoGallery'); var countEl=document.getElementById('picCount');
+  if(countEl)countEl.textContent=filtered.length;
+  if(!grid)return;
+  if(!filtered.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-icon">[Photo]</div><p>'+(query?'No results.':'No pictures yet!')+'</p></div>';return;}
+  var html='';
+  for(var i=0;i<filtered.length;i++){
+    var p=filtered[i]; var realIdx=cvPhotos.indexOf(p);
+    html+='<div onclick="openLightbox('+realIdx+')" style="position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--surface);border:1px solid var(--border);cursor:pointer">'
+      +'<img src="'+p.url+'" alt="'+p.title+'" style="width:100%;height:100%;object-fit:cover;display:block">'
+      +'<div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,rgba(0,0,0,0.7),transparent);padding:20px 8px 8px;font-size:11px;color:rgba(255,255,255,0.9);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.title+'</div>'
+      +'<button onclick="event.stopPropagation();removePhoto('+realIdx+')" style="position:absolute;top:6px;right:6px;background:rgba(239,68,68,0.8);border:none;color:white;border-radius:50%;width:24px;height:24px;font-size:12px;cursor:pointer">✕</button>'
+    +'</div>';
+  }
+  grid.innerHTML=html;
+}
+
+function removePhoto(idx){ cvPhotos.splice(idx,1); savePhotos(); renderGallery(); toast('Deleted','Photo removed'); }
+
+function openLightbox(idx) {
+  lbIndex=idx; showLightboxItem();
+  var lb=document.getElementById('lightbox');
+  if(lb){lb.style.display='flex'; document.body.style.overflow='hidden';}
+  var startX=0;
+  if(lb){
+    lb.ontouchstart=function(e){startX=e.touches[0].clientX;};
+    lb.ontouchend=function(e){var diff=startX-e.changedTouches[0].clientX;if(Math.abs(diff)>50)lbNav(diff>0?1:-1);};
+  }
+  document.onkeydown=function(e){if(e.key==='ArrowRight')lbNav(1);else if(e.key==='ArrowLeft')lbNav(-1);else if(e.key==='Escape')closeLightbox();};
+}
+
+function showLightboxItem() {
+  var p=cvPhotos[lbIndex]; if(!p)return;
+  var img=document.getElementById('lbImg'); var cap=document.getElementById('lbCaption'); var ctr=document.getElementById('lbCounter');
+  if(img)img.src=p.url; if(cap)cap.textContent=p.title; if(ctr)ctr.textContent=(lbIndex+1)+' / '+cvPhotos.length;
+}
+
+function lbNav(dir,e){ if(e)e.stopPropagation(); lbIndex=(lbIndex+dir+cvPhotos.length)%cvPhotos.length; showLightboxItem(); }
+
+function closeLightbox(e) {
+  if(e&&e.target!==document.getElementById('lightbox'))return;
+  var lb=document.getElementById('lightbox'); if(lb)lb.style.display='none';
+  document.body.style.overflow=''; document.onkeydown=null;
+}
+
+function lbDownloadImg(e){ e.stopPropagation(); var p=cvPhotos[lbIndex]; if(!p)return; var a=document.createElement('a');a.href=p.url;a.download=p.title;a.target='_blank';a.click();toast('Download','Saving image...'); }
+function lbCopyLink(e){ e.stopPropagation(); var p=cvPhotos[lbIndex]; if(!p)return; if(navigator.clipboard){navigator.clipboard.writeText(p.url).then(function(){toast('[Link]','Link copied!');},function(){toast('!','Copy failed');});}else{fallbackCopy(p.url);} }
+function lbDelete(e){ e.stopPropagation(); cvPhotos.splice(lbIndex,1); savePhotos(); if(!cvPhotos.length){closeLightbox();renderGallery();return;} lbIndex=Math.min(lbIndex,cvPhotos.length-1); showLightboxItem(); renderGallery(); toast('Deleted','Photo deleted'); }
+
+// ── Backblaze B2 Cloud ──
+function saveB2Config() {
+  var keyId     =document.getElementById('b2KeyId')     ?document.getElementById('b2KeyId').value.trim():'';
+  var appKey    =document.getElementById('b2AppKey')    ?document.getElementById('b2AppKey').value.trim():'';
+  var bucketName=document.getElementById('b2BucketName')?document.getElementById('b2BucketName').value.trim():'';
+  var endpoint  =document.getElementById('b2Endpoint')  ?document.getElementById('b2Endpoint').value.trim():'';
+  var region    =document.getElementById('b2Region')    ?document.getElementById('b2Region').value.trim():'';
+  if(!keyId||!appKey||!bucketName||!endpoint){toast('!','Fill in all fields');return;}
+  cvB2Config={keyId:keyId,appKey:appKey,bucketName:bucketName,endpoint:endpoint,region:region};
+  localStorage.setItem('cv_b2config',JSON.stringify(cvB2Config));
+  toast('Saved','Config saved — testing connection...');
+  testB2Connection();
+}
+
+function clearB2Config() {
+  cvB2Config=null; b2AuthToken=null; b2ApiUrl=null; b2DownloadUrl=null;
+  localStorage.removeItem('cv_b2config');
+  updateCloudStatus(false,'Cleared');
+  var uc=document.getElementById('cloudUploadCard'); if(uc)uc.style.display='none';
+  var lc=document.getElementById('cloudLibraryCard'); if(lc)lc.style.display='none';
+  toast('Deleted','Cloud config cleared');
+}
+
+function toggleKeyVis() {
+  var inp=document.getElementById('b2AppKey'); var btn=document.getElementById('keyVisBtn');
+  if(!inp)return;
+  inp.type=inp.type==='password'?'text':'password';
+  if(btn)btn.textContent=inp.type==='password'?'[Show]':'[Hide]';
+}
+
+function loadB2ConfigFields() {
+  if(!cvB2Config)return;
+  var f=function(id,val){var el=document.getElementById(id);if(el)el.value=val||'';};
+  f('b2KeyId',cvB2Config.keyId); f('b2AppKey',cvB2Config.appKey);
+  f('b2BucketName',cvB2Config.bucketName); f('b2Endpoint',cvB2Config.endpoint); f('b2Region',cvB2Config.region);
+}
+
+function updateCloudStatus(connected, msg) {
+  var bar=document.getElementById('cloudStatusBar'); var badge=document.getElementById('cloudBadge');
+  var uc=document.getElementById('cloudUploadCard'); var lc=document.getElementById('cloudLibraryCard');
+  if(connected){
+    if(bar){bar.style.cssText='display:flex;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;align-items:center;gap:10px;font-weight:600;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981';bar.innerHTML='OK Connected to Backblaze B2 — '+(msg||'');}
+    if(badge){badge.textContent='OK Connected';badge.style.cssText='font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3)';}
+    if(uc)uc.style.display='block'; if(lc)lc.style.display='block';
+  } else {
+    if(bar){bar.style.cssText='display:flex;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;align-items:center;gap:10px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#ef4444';bar.innerHTML='Error Not connected — '+(msg||'Enter credentials above');}
+    if(badge){badge.textContent='Not connected';badge.style.cssText='font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3)';}
+    if(uc)uc.style.display='none'; if(lc)lc.style.display='none';
+  }
+}
+
+function authorizeB2() {
+  if(!cvB2Config)return Promise.resolve(false);
+  var creds=btoa(cvB2Config.keyId+':'+cvB2Config.appKey);
+  return fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account',{headers:{'Authorization':'Basic '+creds}})
+    .then(function(resp){
+      if(!resp.ok)return resp.json().then(function(err){throw new Error(err.message||'Auth failed');});
+      return resp.json();
+    }).then(function(data){
+      b2AuthToken=data.authorizationToken;
+      b2ApiUrl=data.apiInfo.storageApi.apiUrl;
+      b2DownloadUrl=data.downloadUrl;
+      return true;
+    }).catch(function(e){ updateCloudStatus(false,e.message); return false; });
+}
+
+function testB2Connection() {
+  updateCloudStatus(false,'Connecting...');
+  authorizeB2().then(function(ok){
+    if(ok){ updateCloudStatus(true,cvB2Config.bucketName); toast('OK','Connected to Backblaze B2!'); loadCloudFiles(); }
+    else   { toast('Error','Connection failed — check credentials'); }
+  });
+}
+
+function getBucketId() {
+  return fetch(b2ApiUrl+'/b2api/v3/b2_list_buckets',{method:'POST',headers:{'Authorization':b2AuthToken,'Content-Type':'application/json'},body:JSON.stringify({accountId:'',bucketName:cvB2Config.bucketName})})
+    .then(function(r){return r.json();}).then(function(data){
+      if(!data.buckets||!data.buckets.length)throw new Error('Bucket not found: '+cvB2Config.bucketName);
+      return data.buckets[0].bucketId;
+    });
+}
+
+function switchUpTab(tab) {
+  var tabs=['video','audio','photo'];
+  for(var i=0;i<tabs.length;i++){
+    var t=tabs[i];
+    var btn=document.getElementById('upTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    var sec=document.getElementById('up'+t.charAt(0).toUpperCase()+t.slice(1)+'Section');
+    if(btn)btn.classList.toggle('active',t===tab);
+    if(sec)sec.style.display=t===tab?'block':'none';
+  }
+}
+
+function uploadToB2(event, kind) {
+  var file=event.target.files[0]; if(!file)return; event.target.value='';
+  var progressWrap=document.getElementById('uploadProgressWrap');
+  var fileNameEl=document.getElementById('uploadFileName');
+  var pctEl=document.getElementById('uploadPct');
+  var barEl=document.getElementById('uploadBar');
+  var statusEl=document.getElementById('uploadStatus');
+  if(progressWrap)progressWrap.style.display='block';
+  if(fileNameEl)fileNameEl.textContent=file.name;
+  if(pctEl)pctEl.textContent='0%';
+  if(barEl)barEl.style.width='0%';
+  if(statusEl)statusEl.textContent='Authorizing...';
+
+  var doUpload = function() {
+    if(statusEl)statusEl.textContent='Getting upload URL...';
+    getBucketId().then(function(bucketId){
+      return fetch(b2ApiUrl+'/b2api/v3/b2_get_upload_url',{method:'POST',headers:{'Authorization':b2AuthToken,'Content-Type':'application/json'},body:JSON.stringify({bucketId:bucketId})});
+    }).then(function(r){return r.json();}).then(function(urlData){
+      if(statusEl)statusEl.textContent='Uploading...';
+      var uploadUrl=urlData.uploadUrl; var uploadAuth=urlData.authorizationToken;
+      var fileName=Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      return new Promise(function(resolve,reject){
+        var xhr=new XMLHttpRequest();
+        xhr.open('POST',uploadUrl);
+        xhr.setRequestHeader('Authorization',uploadAuth);
+        xhr.setRequestHeader('X-Bz-File-Name',encodeURIComponent(fileName));
+        xhr.setRequestHeader('Content-Type',file.type||'application/octet-stream');
+        xhr.setRequestHeader('X-Bz-Content-Sha1','do_not_verify');
+        xhr.upload.onprogress=function(e){if(e.lengthComputable){var pct=Math.round((e.loaded/e.total)*100);if(barEl)barEl.style.width=pct+'%';if(pctEl)pctEl.textContent=pct+'%';if(statusEl)statusEl.textContent=(e.loaded/1024/1024).toFixed(1)+' MB / '+(e.total/1024/1024).toFixed(1)+' MB';}};
+        xhr.onload=function(){if(xhr.status===200)resolve(JSON.parse(xhr.responseText));else reject(new Error('Upload failed: HTTP '+xhr.status));};
+        xhr.onerror=function(){reject(new Error('Network error'));};
+        xhr.send(file);
+      }).then(function(){
+        var fileUrl=b2DownloadUrl+'/file/'+cvB2Config.bucketName+'/'+encodeURIComponent(fileName);
+        if(barEl)barEl.style.width='100%';if(pctEl)pctEl.textContent='100%';if(statusEl)statusEl.innerHTML='OK Uploaded!';
+        if(kind==='video'){cvVideos.push({title:file.name,url:fileUrl,type:'web',mediaKind:'video',cloud:true,added:Date.now()});saveVideos();toast('OK','Uploaded & added to library!');}
+        else if(kind==='audio'){cvVideos.push({title:file.name,url:fileUrl,type:'web',mediaKind:'audio',cloud:true,added:Date.now()});saveVideos();toast('[Audio]','Audio uploaded & added!');}
+        else if(kind==='photo'){cvPhotos.push({id:Date.now(),title:file.name,url:fileUrl,type:'url',cloud:true,added:Date.now()});savePhotos();toast('[Photo]','Photo uploaded & added!');}
+        setTimeout(function(){if(progressWrap)progressWrap.style.display='none';},3000);
+        loadCloudFiles();
+      });
+    }).catch(function(e){if(statusEl)statusEl.innerHTML='<span style="color:var(--danger)">Error '+e.message+'</span>';toast('Error',e.message.slice(0,40));});
+  };
+
+  if(!b2AuthToken){authorizeB2().then(function(ok){if(ok)doUpload();else toast('Error','Not connected to B2');});}
+  else doUpload();
+}
+
+function loadCloudFiles() {
+  var listEl=document.getElementById('cloudFileList'); var countEl=document.getElementById('cloudFileCount');
+  if(!listEl)return;
+  listEl.innerHTML='<div style="color:var(--muted);font-size:13px;padding:10px">Loading...</div>';
+  var doLoad=function(){
+    getBucketId().then(function(bucketId){
+      return fetch(b2ApiUrl+'/b2api/v3/b2_list_file_names',{method:'POST',headers:{'Authorization':b2AuthToken,'Content-Type':'application/json'},body:JSON.stringify({bucketId:bucketId,maxFileCount:100})});
+    }).then(function(r){return r.json();}).then(function(data){
+      var files=data.files||[];
+      if(countEl)countEl.textContent=files.length;
+      if(!files.length){listEl.innerHTML='<div class="empty"><div class="empty-icon">[Cloud]</div><p>No files uploaded yet</p></div>';return;}
+      var html='';
+      for(var i=0;i<files.length;i++){
+        var f=files[i];
+        var fileUrl=b2DownloadUrl+'/file/'+cvB2Config.bucketName+'/'+encodeURIComponent(f.fileName);
+        var sizeMB=(f.contentLength/1024/1024).toFixed(1);
+        var isVideo=/\.(mp4|webm|mov|mkv|avi)/i.test(f.fileName);
+        var isAudio=/\.(mp3|ogg|wav|flac|aac|m4a)/i.test(f.fileName);
+        var isPhoto=/\.(jpg|jpeg|png|gif|webp)/i.test(f.fileName);
+        var emoji=isVideo?'[Video]':isAudio?'[Audio]':isPhoto?'[Photo]':'[File]';
+        var addKind=isVideo?'video':isAudio?'audio':isPhoto?'photo':null;
+        var addBtn=addKind?'<button class="btn btn-ghost" style="padding:6px 10px;font-size:11px" onclick="addCloudFileToLibrary(''+encodeURIComponent(fileUrl)+'',''+encodeURIComponent(f.fileName)+'',''+addKind+'')">＋ Add</button>':'';
+        html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="font-size:20px;flex-shrink:0">'+emoji+'</div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.fileName+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+sizeMB+' MB</div></div><div style="display:flex;gap:6px;flex-shrink:0">'+addBtn+'<a href="'+fileUrl+'" download="'+f.fileName+'" target="_blank" class="btn btn-download" style="padding:6px 10px;font-size:11px;text-decoration:none">Download</a></div></div>';
+      }
+      listEl.innerHTML=html;
+    }).catch(function(e){listEl.innerHTML='<div style="color:var(--danger);font-size:13px;padding:10px">Error '+e.message+'</div>';});
+  };
+  if(!b2AuthToken){authorizeB2().then(function(ok){if(ok)doLoad();else listEl.innerHTML='<div style="color:var(--danger);font-size:13px;padding:10px">Not connected</div>';});}
+  else doLoad();
+}
+
+function addCloudFileToLibrary(encodedUrl,encodedName,kind){
+  var url=decodeURIComponent(encodedUrl); var name=decodeURIComponent(encodedName);
+  if(kind==='photo'){cvPhotos.push({id:Date.now(),title:name,url:url,type:'url',cloud:true,added:Date.now()});savePhotos();toast('[Photo]','Added to photos!');}
+  else{for(var i=0;i<cvVideos.length;i++){if(cvVideos[i].url===url){toast('!','Already in library');return;}}cvVideos.push({title:name,url:url,type:'web',mediaKind:kind,cloud:true,added:Date.now()});saveVideos();toast('OK','Added to library!');}
+}
+
+function initCloudTab() {
+  if(_cloudInitDone)return;
+  _cloudInitDone=true;
+  loadB2ConfigFields();
+  if(cvB2Config)testB2Connection();
+  else updateCloudStatus(false,'Enter your credentials above');
+}
+
+// ── Init ──
+try {
+  renderLibrary();
+} catch(e) {
+  document.body.innerHTML += '<div style="position:fixed;bottom:0;left:0;right:0;background:#ef4444;color:white;padding:16px;font-size:13px;z-index:99999;font-family:monospace"><strong>INIT ERROR:</strong> ' + e.message + '<br>Line: ' + (e.lineNumber||e.line||'?') + '<br>Stack: ' + (e.stack||'').slice(0,200) + '</div>';
+}
+</script>
+</body>
+</html>
